@@ -58,7 +58,7 @@ public class AnswerCheck {
 			System.out.println(e1.getMessage());
 			HelpFormatter help = new HelpFormatter();
 			help.setOptionComparator(new OptionComparator(optionList));
-			help.printHelp("karkinos.jar varidate", opts, true);
+			help.printHelp("karkinosSim.jar checkAnswer", opts, true);
 			return;
 		}
 		

@@ -59,7 +59,7 @@ public class DivideBam {
 				System.out.println(e1.getMessage());
 				HelpFormatter help = new HelpFormatter();
 				help.setOptionComparator(new OptionComparator(optionList));
-				help.printHelp("karkinos.jar varidate", opts, true);
+				help.printHelp("karkinosSim.jar devideBAM", opts, true);
 				return;
 			}
 			

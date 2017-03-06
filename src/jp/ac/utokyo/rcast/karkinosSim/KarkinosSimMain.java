@@ -13,12 +13,21 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+
+import org.apache.commons.cli.BasicParser;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+
 import java.util.Set;
 
 import htsjdk.samtools.SAMFileReader;
 import htsjdk.samtools.SAMRecord;
 import htsjdk.samtools.util.CloseableIterator;
 import jp.ac.utokyo.rcast.karkinos.exec.IndelInfo;
+import jp.ac.utokyo.rcast.karkinos.utils.OptionComparator;
 import jp.ac.utokyo.rcast.karkinos.utils.ReadWriteBase;
 import jp.ac.utokyo.rcast.karkinos.utils.TwoBitGenomeReader;
 import jp.ac.utokyo.rcast.karkinosSim.refs.CapHolderSim;
@@ -28,8 +37,8 @@ public class KarkinosSimMain extends ReadWriteBase {
 	public static void main(String[] arg) {
 
 		try {
-			//exec(arg[0]);
 			exec(arg);
+			//exec(arg);
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -89,7 +98,120 @@ public class KarkinosSimMain extends ReadWriteBase {
 		//}
 	}
 	
+	
+	private static List<Option> getOption() {
+		List<Option> optionlist = new ArrayList<Option>();
+
+		
+		optionlist.add(getOption("id", "id", true,
+				"id for this similation", true));
+		
+		optionlist.add(getOption("target", "target bed", true,
+				"target bed file", true));
+		
+		optionlist.add(getOption("r", "ref", true,
+				"2bit reference file", true));
+		
+		optionlist.add(getOption("SNP", "SNPVcf", true,
+				"SNP list exclude SNP positions", true));
+		
+		optionlist.add(getOption("SNVgen", "SNVgen", true,
+				"SNV to generate, vcf", true));
+		
+		optionlist.add(getOption("SNVgenSub", "SNVgenSub", true,
+				"subpolulation SNV to generate, vcf", true));
+		
+			
+		optionlist.add(getOption("CNVgen", "CNVgen", true,
+				"CNV to generate, vcf", true));
+		
+		optionlist.add(getOption("tc", "tumorContent", true,
+				"tumor content ration for similation", true));
+		
+		
+				
+		optionlist.add(getOption("normalbam1", "normalbam1", true,
+				"normalbam1", true));
+		
+
+		optionlist.add(getOption("normalbam2", "normalbam2", true,
+				"normalbam2", true));
+
+		
+		
+
+		
+		optionlist.add(getOption("out", "out", true, "output directory", true));
+		
+		
+
+		return optionlist;
+	}
+	
+
+	public static Option getOption(String opt, String longOpt, boolean hasArg,
+			String description, boolean required) {
+		Option option = new Option(opt, longOpt, hasArg, description);
+		option.setRequired(required);
+		return option;
+	}
+
+	
 	public static void exec(String[] arg) throws Exception {
+		
+		BasicParser parcer = new BasicParser();
+		List<Option> optionList = getOption();
+		Options opts = new Options();
+		for (Option opt : optionList) {
+			opts.addOption(opt);
+		}
+
+		CommandLine cl = null;
+		try {
+			cl = parcer.parse(opts, arg);
+		} catch (ParseException e1) {
+			System.out.println(e1.getMessage());
+			HelpFormatter help = new HelpFormatter();
+			help.setOptionComparator(new OptionComparator(optionList));
+			help.printHelp("karkinosSim.jar similate", opts, true);
+			return;
+		}
+		
+		
+		//optionlist.add(getOption("id", "id", true,
+		String id = cl.getOptionValue("id");
+		//optionlist.add(getOption("target", "target bed", true,
+		String bed = cl.getOptionValue("target");					
+		//optionlist.add(getOption("r", "ref", true,
+		String tb = cl.getOptionValue("r");	
+		//optionlist.add(getOption("SNP", "SNPVcf", true,
+		String SNPlist = cl.getOptionValue("SNP");	
+		//optionlist.add(getOption("SNVgen", "SNVgen", true,
+		String artifitial = cl.getOptionValue("SNVgen");	
+		//optionlist.add(getOption("SNVgenSub", "SNVgenSub", true,
+		String artifitial_sub = cl.getOptionValue("SNVgenSub");
+		//optionlist.add(getOption("CNVgen", "CNVgen", true,
+		String CNV 	= cl.getOptionValue("CNVgen");	
+		//optionlist.add(getOption("tc", "tumorContent", true,
+					
+		
+				
+		
+		//optionlist.add(getOption("normalbam1", "normalbam1", true,
+		String nb1 = 	cl.getOptionValue("normalbam1");	
+
+		//optionlist.add(getOption("normalbam2", "normalbam2", true,
+		String nb2 = 	cl.getOptionValue("normalbam2");
+		
+						
+		//optionlist.add(getOption("out", "out", true, "output directory", true));
+		
+		String outdir = 	cl.getOptionValue("out");
+	
+
+		double tcc = Double.parseDouble(cl.getOptionValue("tc"));
+		
+		_exec(bed, tb, nb1, nb2, id, outdir, SNPlist, artifitial,artifitial_sub, CNV, tcc);
 		
 	}
 

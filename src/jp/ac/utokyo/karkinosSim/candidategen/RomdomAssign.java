@@ -67,6 +67,13 @@ public class RomdomAssign {
 		optionlist.add(getOption("r", "ref", true,
 				"2bit reference file", true));
 		
+		optionlist.add(getOption("numSnv", "numSnv", true,
+				"number of snv to similate", true));
+		
+		optionlist.add(getOption("numIndel", "numIndel", true,
+				"number of Indel to similate", true));
+		
+		
 		optionlist.add(getOption("lowdepth", "lowdepth", true,
 				"low depth vcf", true));
 
@@ -106,7 +113,7 @@ public class RomdomAssign {
 			System.out.println(e1.getMessage());
 			HelpFormatter help = new HelpFormatter();
 			help.setOptionComparator(new OptionComparator(optionList));
-			help.printHelp("karkinos.jar varidate", opts, true);
+			help.printHelp("karkinosSim.jar assignSNVIndel", opts, true);
 			return;
 		}
 		
@@ -126,11 +133,12 @@ public class RomdomAssign {
 				new FileOutputStream(outvcf)));
 		writeHeader(bw);
 		
-		int numSNV = 1000;
-		int numins = 0;
+		//int numSNV = 1000;
+		int numSNV = Integer.parseInt(cl.getOptionValue("numSnv"));
+		int numins = Integer.parseInt(cl.getOptionValue("numIndel"));
 		int numdel = 0;
 		
-		float indelfrac = 0.15f;
+		//float indelfrac = 0.15f;
 
 		int maxIndelLength = 20;
 
