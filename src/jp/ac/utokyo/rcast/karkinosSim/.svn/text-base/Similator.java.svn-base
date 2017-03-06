@@ -1,0 +1,335 @@
+package jp.ac.utokyo.rcast.karkinosSim;
+
+import java.io.BufferedOutputStream;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.zip.GZIPOutputStream;
+import java.util.Set;
+import java.util.TreeMap;
+
+import net.sf.samtools.SAMFileReader;
+import net.sf.samtools.SAMFileWriter;
+import net.sf.samtools.SAMRecord;
+import net.sf.samtools.util.CloseableIterator;
+
+import jp.ac.utokyo.rcast.karkinos.exec.CapInterval;
+import jp.ac.utokyo.rcast.karkinos.utils.ReadWriteBase;
+import jp.ac.utokyo.rcast.karkinos.utils.TwoBitGenomeReader;
+import jp.ac.utokyo.rcast.karkinosSim.refs.CapHolderSim;
+import jp.ac.utokyo.rcast.karkinosSim.util.LimitedLinkedHashMap;
+
+public class Similator extends ReadWriteBase {
+
+	public static void similate(Map<String, SNPHolder> snpHolderMap,
+			String nb1, String nb2, TwoBitGenomeReader tgr,
+			CapHolderSim capholder, CNVHolder cnv, double tc,
+			int librarysizemax, String id, String outdir) throws Exception {
+
+		//
+		int unit = 10000;
+
+		String bfout = outdir + "/" + id + "_4checkonly.bam";
+		SAMFileReader normalbam1 = getReader(nb1);
+		SAMFileReader normalbam2 = getReader(nb2);
+		SAMFileWriter sfw = getPreSortWriter(normalbam1.getFileHeader(), bfout);
+
+		FastQwriter fqw = new FastQwriter(outdir + "/fq/", id, 4000000);
+
+		List<SNPInfoBean> artifitialMutation = getArtifitial(snpHolderMap);
+		Set<String> recentregister = Collections.newSetFromMap(new LimitedLinkedHashMap<String,Boolean>(1000));
+		
+			
+		//
+		List<GenomeInterval> list = getChank(capholder, cnv, unit);
+				
+		int cnt = 0;
+		int cnt2 = 0;
+	
+		for (GenomeInterval gi : list) {
+			
+//debug
+//			if(gi.getChr().equals("chr1")){
+//				if(gi.getStart()<215759899){
+//					continue;
+//				}
+//			}else{
+//				continue;
+//			}
+		
+			
+			CloseableIterator<SAMRecord> normarIte1 = normalbam1.query(
+					gi.getChr(), gi.getStart(), gi.getEnd(), false);
+
+			LinkedHashMap<String, SamBean> readsmap = new LinkedHashMap<String, SamBean>();
+			int smutationExsistFlg = check(gi, cnv, artifitialMutation);
+			CNVBean cnvbean = check(gi, cnv, false);
+			CNVBean cnvbeanfocal = check(gi, cnv, true);
+
+			if (smutationExsistFlg > 0) {
+
+				SNPHolder snpHolder = snpHolderMap.get(gi.chr);
+
+				// induce somatic mutation
+				ReadsSimilator rsimi = new ReadsSimilator(tgr, snpHolder, gi,
+						cnv, tc, artifitialMutation, smutationExsistFlg,
+						cnvbean, cnvbeanfocal, normarIte1, normalbam2);
+				rsimi.modifyReads();
+				
+				for (SAMRecord sam : rsimi.getSortedSAMRecords()) {
+					try{
+						sfw.addAlignment(sam);
+					}catch(IllegalArgumentException iae){
+						//ignore error
+						System.out.println("could not add read to bam");
+					}
+				}
+
+				for (SamBean sb : rsimi.getSambeanList()) {
+
+					if (sb.bothExsist()&&!recentregister.contains(sb.sam1.getReadName())) {
+										
+						fqw.add(sb);
+						recentregister.add(sb.sam1.getReferenceName());
+					}
+
+				}
+				cnt2++;
+				
+
+			} else {
+
+				// no artifitial change
+				while (normarIte1.hasNext()) {
+
+					SAMRecord sr = normarIte1.next();
+					try{
+						sfw.addAlignment(sr);
+					}catch(IllegalArgumentException iae){
+						//ignore error
+						iae.printStackTrace();
+					}
+					SamBean sb = add(readsmap, sr);
+					if(sb.bothExsist()&&!recentregister.contains(sr.getReadName())){
+						fqw.add(sb);
+						readsmap.remove(sr.getReadName());
+						recentregister.add(sb.sam1.getReferenceName());
+					}
+					
+				}	
+				normarIte1.close();
+				cnt++;
+
+			}
+
+			
+			readsmap = null;
+
+		}
+		System.out.println(cnt);
+		System.out.println(cnt2);
+		normalbam1.close();
+		normalbam2.close();
+		sfw.close();
+		fqw.close();
+
+	}
+
+	private static List<SNPInfoBean> getArtifitial(
+			Map<String, SNPHolder> snpHolder) {
+
+		List<SNPInfoBean> list = new ArrayList<SNPInfoBean>();
+		Iterator<String> ite = snpHolder.keySet().iterator();
+		while (ite.hasNext()) {
+
+			String chr = ite.next();
+			SNPHolder sh = snpHolder.get(chr);
+			Set<Entry<Integer, SNPInfoBean>> set = sh.snpmap.entrySet();
+			for (Entry<Integer, SNPInfoBean> et : set) {
+
+				SNPInfoBean ib = et.getValue();
+				if (ib.modeSnp == 2) {
+					list.add(ib);
+				}
+
+			}
+
+		}
+		return list;
+
+	}
+
+	private static SamBean add(LinkedHashMap<String, SamBean> map, SAMRecord sr) {
+
+		String readname = sr.getReadName();
+		SamBean sb = null;
+		if (map.containsKey(readname)) {
+			sb = map.get(readname);
+		} else {
+			sb = new SamBean();
+			map.put(readname, sb);
+		}
+		//
+		//
+		sb.add(sr);
+		return sb;
+
+	}
+
+	private static CNVBean check(GenomeInterval gi, CNVHolder cnv, boolean focal) {
+
+		//
+
+		for (CNVBean cnvb : cnv.getList()) {
+
+			if (cnvb.chr.equals(gi.chr)) {
+				boolean include = (gi.start <= cnvb.end)
+						&& (cnvb.start <= gi.end);
+				if (include) {
+					if (focal) {
+						if (cnvb.focal) {
+							return cnvb;
+						}
+					} else {
+						if (!cnvb.focal) {
+							return cnvb;
+						}
+
+					}
+
+				}
+			}
+
+		}
+		return null;
+	}
+
+	private static int check(GenomeInterval gi, CNVHolder cnv,
+			List<SNPInfoBean> artifitialMutation) {
+
+		//
+		boolean cna = false;
+		boolean sna = false;
+		for (CNVBean cnvb : cnv.getList()) {
+
+			//System.out.println(cnvb.chr+"\t"+cnvb.start+"\t"+cnvb.end);
+			if (cnvb.chr.equals(gi.chr)) {
+				boolean include = (gi.start <= cnvb.end)
+						&& (cnvb.start <= gi.end);
+				if (include) {
+					cna = true;
+				}
+			}
+
+		}
+		// //
+		for (SNPInfoBean sib : artifitialMutation) {
+
+			if (gi.include(sib.chr, sib.pos)) {
+				sna = true;
+			}
+
+		}
+		if (cna && sna)
+			return 3;
+		if (cna)
+			return 2;
+		if (sna)
+			return 1;
+		return 0;
+	}
+
+	private static List<GenomeInterval> getChank(CapHolderSim capholder,
+			CNVHolder cnv, int unitsize) {
+
+		List<GenomeInterval> list = new ArrayList<GenomeInterval>();
+		//
+		Map<String, TreeMap<Integer, CapInterval>> capmap = capholder.getMap();
+		Iterator<String> ite = capmap.keySet().iterator();
+		//
+		GenomeInterval gi = null;
+		CapInterval prev = null;
+		int prevend = 0;
+		while (ite.hasNext()) {
+
+			String chr = ite.next();
+			TreeMap<Integer, CapInterval> posmap = capmap.get(chr);
+			Set<Entry<Integer, CapInterval>> set = posmap.entrySet();
+
+			for (Entry<Integer, CapInterval> et : set) {
+
+				//
+				CapInterval ci = et.getValue();
+				if (isnew(prev, ci, unitsize, cnv, prevend)) {
+					if (gi != null) {
+						list.add(gi);
+						prevend = gi.end;
+					}
+					gi = new GenomeInterval();
+					gi.chr = chr;
+					gi.start = ci.getStart() - unitsize;
+					if (gi.start < prevend) {
+						gi.start = prevend + 1;
+					}
+					gi.end = ci.getEnd() + unitsize;
+					prevend = gi.end;
+
+				} else {
+					gi.end = ci.getEnd() + unitsize;
+					prevend = gi.end;
+				}
+				prev = ci;
+			}
+
+		}
+		list.add(gi);
+		return list;
+	}
+
+	private static boolean isnew(CapInterval prev, CapInterval ci,
+			int unitsize, CNVHolder cnv, int prevend) {
+		if (prev == null)
+			return true;
+		if (!prev.getChr().equals(ci.getChr())) {
+			return true;
+		}		
+		if ((ci.getStart() - unitsize < prev.getEnd() + unitsize) ||
+			 (ci.getStart() - unitsize < prevend)){
+			
+		
+			if (crossCNVBorder(ci.getChr(), prev.getStart(), ci.getEnd(), cnv)) {
+				return true;
+			}
+			return false;
+		}
+		
+		return true;
+	}
+
+	private static boolean crossCNVBorder(String chr, int start, int end,
+			CNVHolder cnv) {
+
+		for (CNVBean cb : cnv.getList()) {
+
+			//
+			if (cb.chr.equals(chr)) {
+
+				//
+				if ((cb.start <= end) && (start <= cb.end)) {
+					return true;
+				}
+
+			}
+
+		}
+		return false;
+	}
+
+}
