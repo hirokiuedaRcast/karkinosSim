@@ -57,7 +57,7 @@ public class KarkinosSimCmd {
 				
 			} else if (cmd.equals("checkAnswer")) {
 
-				AnswerCheck.main(arg2);	
+				 AnswerCheck.main(arg2);	 
 				
 			}else{
 
