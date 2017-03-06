@@ -30,13 +30,19 @@ possible commands are; devideBAM ; assignSNVIndel ; similate ; checkAnswer
    devideBAM can devide one bam file to 3.
    If you can provide 3 normal bamfiles, skip this process.
 
+
+```
 usage: karkinosSim.jar devideBAM -bam <arg> -out <arg>
 
  -bam,--bam <arg>   input bam file
  -out,--out <arg>   output directory
 
+```
+
 2. Create positions Vcf for random artifitial SNV and Indel.
 
+
+```
 usage: karkinosSim.jar assignSNVIndel -target <arg> -r <arg> -numSnv <arg>
        -numIndel <arg> -indelfrac <arg> -lowdepth <arg> -outvcf <arg>
 
@@ -47,8 +53,11 @@ usage: karkinosSim.jar assignSNVIndel -target <arg> -r <arg> -numSnv <arg>
  -lowdepth,--lowdepth <arg>     low depth vcf
  -outvcf,--outvcf <arg>         output vcf file
 
+```
+
 3. Genarate similated BAM and FastQ files.
-   
+
+```   
 usage: karkinosSim.jar similate -id <arg> -target <arg> -r <arg> -SNP
        <arg> -SNVgen <arg> -SNVgenSub <arg> -CNVgen <arg> -tc <arg>
        -normalbam1 <arg> -normalbam2 <arg> -out <arg>
@@ -64,11 +73,16 @@ usage: karkinosSim.jar similate -id <arg> -target <arg> -r <arg> -SNP
  -normalbam2,--normalbam2 <arg>   normalbam2
  -out,--out <arg>                 output directory
 
+```
+
 4. Check Answer,Summary Output to  System.out
 
+
+```
 usage: karkinosSim.jar checkAnswer -answer <arg> -check <arg>
  -answer,--answer <arg>   answer vcf file
  -check,--check <arg>     vcf file to check
 
+```
 
 
